@@ -13,3 +13,8 @@ env_logger = "0.9"
 log = "0.4"
 tera = "1.5"
 serde ={ version = "*", features = ["derive"]}
+
+actix-session = "0.5"
+actix-redis ="0.10"
+
+

@@ -107,7 +107,7 @@ pub async fn post_signin(
             Ok(redirect("/"))
         }
         Err(_) => {
-            ctx.insert("hata", "Basqa nese problem oldu yeniden yoxla");
+            ctx.insert("hata", "username databazada movcuddur");
             //println!("{:?}", *form);
              let a = tmpl
             .render("siginin.html", &ctx)
@@ -128,4 +128,3 @@ fn redirect(location: &str) -> HttpResponse {
         .finish()
 }
 
-//44:31

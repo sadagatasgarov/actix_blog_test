@@ -17,4 +17,4 @@ serde ={ version = "*", features = ["derive"]}
 actix-session = "0.5"
 actix-redis ="0.10"
 
-
+sqlx = {version = "0.6", features = ["runtime-actix-rustls", "sqlite"]}

@@ -85,13 +85,18 @@ pub async fn post_signin(
     tmpl: web::Data<Tera>,
     form: web::Form<SigninUser>,
     session: Session,
-    conn: web::Data<SqliteConnection>
+    conn: web::Data<sqlx::SqlitePool>
 ) -> Result<HttpResponse, Error> {
     let ctx = Context::new();
-    let add_user = sqlx::query("insert into users (username, email, password) values ($1,$2,$3)")
-    .bind(&form.email)
-    .bind(&form.username)
-    .bind(&form.password).execute().await?;
+    if &form.password == &form.password2 {
+        let add_user = sqlx::query("insert into users (username, email, password) values ($1,$2,$3)")
+        .bind(&form.username)
+        .bind(&form.email)
+        .bind(&form.password).execute(&**conn).await.unwrap();
+
+        return Ok(redirect("/"))
+    }
+
 
     // let _ = session.insert("user", &form.username);
     // // println!("{:?}", *form);
@@ -100,7 +105,7 @@ pub async fn post_signin(
     //     .map_err(error::ErrorInternalServerError)?;
     // //HttpResponse::Ok().body("Hello world!")
 
-    Ok(redirect("/"))
+    Ok(redirect("/signin"))
 }
 
 

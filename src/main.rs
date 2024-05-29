@@ -17,16 +17,11 @@ use app::*;
 async fn main() -> std::io::Result<()> {
     dotenv().ok();
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
-
+    
     let db = env::var("DATABASE_URL").expect("Database tapilmadi .env faylinin icinde");
-  
+    let conn = sqlx::SqlitePool::connect(&db).await.unwrap();
 
-    HttpServer::new(|| {
-        let connection = async {
-            SqliteConnectOptions::from_str("db").unwrap()
-        .connect().await.unwrap();
-        };
-        
+    HttpServer::new(move || {
         let mut templates = Tera::new("templates/**/*").expect("errors in tera templates");
         templates.autoescape_on(vec!["tera"]);
 
@@ -34,7 +29,7 @@ async fn main() -> std::io::Result<()> {
             .wrap(Logger::default())
             .wrap(CookieSession::signed(&[0;32]).secure(false))
             .app_data(web::Data::new(templates))
-            .app_data(web::Data::new(connection).clone())
+            .app_data(web::Data::new(conn.clone()))
             .service(web::resource("/").route(web::get().to(index)))
             .service(
                 web::resource("/login")

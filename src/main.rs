@@ -2,13 +2,10 @@ use std::{env, str::FromStr};
 
 use actix_files::Files;
 use actix_session::CookieSession;
-use actix_web::{
-    middleware::Logger, web, App, HttpServer,
-};
+use actix_web::{middleware::Logger, web, App, HttpServer};
 use dotenv::dotenv;
 use sqlx::{sqlite::SqliteConnectOptions, ConnectOptions};
 use tera::Tera;
-
 
 mod app;
 use app::*;
@@ -17,7 +14,7 @@ use app::*;
 async fn main() -> std::io::Result<()> {
     dotenv().ok();
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
-    
+
     let db = env::var("DATABASE_URL").expect("Database tapilmadi .env faylinin icinde");
     let conn = sqlx::SqlitePool::connect(&db).await.unwrap();
 
@@ -27,7 +24,7 @@ async fn main() -> std::io::Result<()> {
 
         App::new()
             .wrap(Logger::default())
-            .wrap(CookieSession::signed(&[0;32]).secure(false))
+            .wrap(CookieSession::signed(&[0; 32]).secure(false))
             .app_data(web::Data::new(templates))
             .app_data(web::Data::new(conn.clone()))
             .service(web::resource("/").route(web::get().to(index)))
@@ -48,10 +45,5 @@ async fn main() -> std::io::Result<()> {
     .run()
     .await
 }
-
-
-
-
-
 
 //5:46

@@ -1,13 +1,17 @@
 use actix_session::Session;
 use actix_web::{error, http, web, Error, HttpResponse};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tera::{Context, Tera};
 use validator::{Validate, ValidationError, ValidationErrors, ValidationErrorsKind};
+
+extern crate bcrypt;
+
+use bcrypt::{hash, verify, DEFAULT_COST};
 
 #[derive(Debug, Validate, Deserialize)]
 pub struct LoginUser {
     #[validate(email)]
-    text: String,
+    email: String,
     password: String,
 }
 
@@ -15,13 +19,18 @@ pub struct LoginUser {
 pub struct SigninUser {
     #[validate(email)]
     email: String,
-
     username: String,
-
-    #[validate(must_match ="password2")]
+    #[validate(must_match = "password2")]
     password: String,
-
     password2: String,
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct User {
+    id: i32,
+    email: String,
+    username: String,
+    password: String,
 }
 
 pub async fn index(tmpl: web::Data<Tera>, session: Session) -> Result<HttpResponse, Error> {
@@ -41,11 +50,9 @@ pub async fn index(tmpl: web::Data<Tera>, session: Session) -> Result<HttpRespon
 
 pub async fn login(tmpl: web::Data<Tera>, session: Session) -> Result<HttpResponse, Error> {
     let ctx = Context::new();
-
     if let Some(_) = session.get::<String>("user")? {
         return Ok(redirect("/"));
     }
-
     let a = tmpl
         .render("login.html", &ctx)
         .map_err(error::ErrorInternalServerError)?;
@@ -54,18 +61,25 @@ pub async fn login(tmpl: web::Data<Tera>, session: Session) -> Result<HttpRespon
 }
 
 pub async fn post_login(
-    tmpl: web::Data<Tera>,
     form: web::Form<LoginUser>,
     session: Session,
+    conn: web::Data<sqlx::SqlitePool>,
 ) -> Result<HttpResponse, Error> {
-    let ctx = Context::new();
-    let _ = session.insert("user", &form.text);
-    // println!("{:?}", *form);
-    let _ = tmpl
-        .render("login.html", &ctx)
-        .map_err(error::ErrorInternalServerError)?;
-    //HttpResponse::Ok().body("Hello world!")
-    Ok(redirect("/"))
+    let login_form = form.into_inner();
+
+    if let Ok(_) = login_form.validate() {
+        let user: User = sqlx::query_as("select * from users where email = $1")
+            .bind(&login_form.email)
+            .fetch_one(&**conn)
+            .await
+            .expect("nese loginde xeta oldu");
+
+        if let Ok(_) = bcrypt::verify(&login_form.password, &user.password) {
+            let _ = session.insert("user", &login_form.email);
+        }
+        return Ok(redirect("/"));
+    }
+    Ok(redirect("/login"))
 }
 
 pub async fn signin(tmpl: web::Data<Tera>, session: Session) -> Result<HttpResponse, Error> {
@@ -89,9 +103,11 @@ pub async fn post_signin(
     conn: web::Data<sqlx::SqlitePool>,
 ) -> Result<HttpResponse, Error> {
     let mut ctx = Context::new();
+    let hashed = hash(&form.password, DEFAULT_COST);
+    //let valid = verify("hunter2", &hashed)?;
 
-    match form.validate(){
-        Ok(_)=>(),
+    match form.validate() {
+        Ok(_) => (),
         Err(e) => {
             println!("{}", e);
             ctx.insert("hata", "val err");
@@ -100,29 +116,17 @@ pub async fn post_signin(
                 .render("siginin.html", &ctx)
                 .map_err(error::ErrorInternalServerError)?;
             return Ok(HttpResponse::Ok().body(a));
-        },
+        }
     };
 
-
-    // if &form.password != &form.password2 {
-    //     ctx.insert("hata", "Passwordlar bir biri ile uygun deyil");
-    //     //println!("{:?}", *form);
-    //     let a = tmpl
-    //         .render("siginin.html", &ctx)
-    //         .map_err(error::ErrorInternalServerError)?;
-    //     return Ok(HttpResponse::Ok().body(a));
-    // }
-
-
+    let hashed = hash(&form.password, DEFAULT_COST).unwrap();
 
     let add_user = sqlx::query("insert into users (username, email, password) values ($1,$2,$3)")
         .bind(&form.username)
         .bind(&form.email)
-        .bind(&form.password)
+        .bind(&hashed)
         .execute(&**conn)
         .await;
-
-    
 
     match add_user {
         Ok(_) => {

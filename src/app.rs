@@ -1,20 +1,26 @@
 use actix_session::Session;
 use actix_web::{error, http, web, Error, HttpResponse};
 use serde::Deserialize;
-use sqlx::SqliteConnection;
 use tera::{Context, Tera};
+use validator::{Validate, ValidationError, ValidationErrors, ValidationErrorsKind};
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Validate, Deserialize)]
 pub struct LoginUser {
+    #[validate(email)]
     text: String,
     password: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Validate, Deserialize)]
 pub struct SigninUser {
+    #[validate(email)]
     email: String,
+
     username: String,
+
+    #[validate(must_match ="password2")]
     password: String,
+
     password2: String,
 }
 
@@ -83,14 +89,31 @@ pub async fn post_signin(
     conn: web::Data<sqlx::SqlitePool>,
 ) -> Result<HttpResponse, Error> {
     let mut ctx = Context::new();
-    if &form.password != &form.password2 {
-        ctx.insert("hata", "Passwordlar bir biri ile uygun deyil");
-        //println!("{:?}", *form);
-        let a = tmpl
-            .render("siginin.html", &ctx)
-            .map_err(error::ErrorInternalServerError)?;
-        return Ok(HttpResponse::Ok().body(a));
-    }
+
+    match form.validate(){
+        Ok(_)=>(),
+        Err(e) => {
+            println!("{}", e);
+            ctx.insert("hata", "val err");
+            //println!("{:?}", *form);
+            let a = tmpl
+                .render("siginin.html", &ctx)
+                .map_err(error::ErrorInternalServerError)?;
+            return Ok(HttpResponse::Ok().body(a));
+        },
+    };
+
+
+    // if &form.password != &form.password2 {
+    //     ctx.insert("hata", "Passwordlar bir biri ile uygun deyil");
+    //     //println!("{:?}", *form);
+    //     let a = tmpl
+    //         .render("siginin.html", &ctx)
+    //         .map_err(error::ErrorInternalServerError)?;
+    //     return Ok(HttpResponse::Ok().body(a));
+    // }
+
+
 
     let add_user = sqlx::query("insert into users (username, email, password) values ($1,$2,$3)")
         .bind(&form.username)
@@ -98,6 +121,8 @@ pub async fn post_signin(
         .bind(&form.password)
         .execute(&**conn)
         .await;
+
+    
 
     match add_user {
         Ok(_) => {
@@ -109,10 +134,10 @@ pub async fn post_signin(
         Err(_) => {
             ctx.insert("hata", "username databazada movcuddur");
             //println!("{:?}", *form);
-             let a = tmpl
-            .render("siginin.html", &ctx)
-            .map_err(error::ErrorInternalServerError)?;
-        return Ok(HttpResponse::Ok().body(a));
+            let a = tmpl
+                .render("siginin.html", &ctx)
+                .map_err(error::ErrorInternalServerError)?;
+            return Ok(HttpResponse::Ok().body(a));
         }
     }
 }
@@ -127,4 +152,3 @@ fn redirect(location: &str) -> HttpResponse {
         .append_header((http::header::LOCATION, location))
         .finish()
 }
-

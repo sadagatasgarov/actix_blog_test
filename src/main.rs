@@ -1,10 +1,9 @@
-use std::{env, str::FromStr};
+use std::env;
 
 use actix_files::Files;
 use actix_session::CookieSession;
 use actix_web::{middleware::Logger, web, App, HttpServer};
 use dotenv::dotenv;
-use sqlx::{sqlite::SqliteConnectOptions, ConnectOptions};
 use tera::Tera;
 
 mod app;
